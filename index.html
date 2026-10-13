@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pássaro: O Mar Infinito</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0a192f;
+            overflow: hidden;
+            font-family: sans-serif;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+        }
+        #painel-fim {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 5, 15, 0.9);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        h1 {
+            color: #4da8da;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .reflexao {
+            font-size: 18px;
+            font-style: italic;
+            color: #e0f7fa;
+            max-width: 85%;
+            margin: 20px 0;
+            line-height: 1.4;
+            border-left: 4px solid #4da8da;
+            padding-left: 15px;
+            text-align: left;
+        }
+        .btn-reiniciar {
+            margin-top: 20px;
+            padding: 15px 35px;
+            font-size: 18px;
+            font-weight: bold;
+            background: #4da8da;
+            color: #0a192f;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+        }
+        #placar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body>
+
+<div id="placar">Distância: 0m</div>
+<canvas id="jogo"></canvas>
+
+<div id="painel-fim">
+    <h1>Oceano Profundo</h1>
+    <div class="reflexao" id="texto-reflexao">...</div>
+    <p>Distância percorrida: <span id="distancia-final">0</span>m</p>
+    <button class="btn-reiniciar" id="btn-restart">Continuar Nadando</button>
+</div>
+
+<script>
+    const canvas = document.getElementById('jogo');
+    const ctx = canvas.getContext('2d');
+    const placarText = document.getElementById('placar');
+    const painelFim = document.getElementById('painel-fim');
+    const textoReflexao = document.getElementById('texto-reflexao');
+    const distanciaFinal = document.getElementById('distancia-final');
+    const btnRestart = document.getElementById('btn-restart');
+
+    function redimensionar() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', redimensionar);
+    redimensionar();
+
+    const reflexoes = [
+        "O lixo que os outros deixam no seu caminho não define o seu valor. Desvie e continue.",
+        "O medo (como o tubarão) parece enorme de perto, mas é apenas mais um obstáculo no vasto mar.",
+        "Ficar preso em uma rede é angustiante, mas temporário, desde que você nunca pare de tentar.",
+        "A gravidade da vida sempre tentará te puxar para baixo. O seu trabalho é continuar nadando.",
+        "Nem toda correnteza leva ao destino certo. Aprenda a nadar contra ela.",
+        "A superfície sempre estará lá em cima, esperando o seu próximo salto. Respire fundo."
+    ];
+
+    let estadoJogo = 'JOGANDO';
+    let frames = 0;
+    let distancia = 0;
+    let velocidadeJogo = 3;
+    let animacaoId = null;
+
+    let baleia = {
+        x: canvas.width * 0.2,
+        y: canvas.height / 2,
+        raio: 18,
+        vy: 0,
+        gravidade: 0.18,
+        pulo: -5.5
+    };
+
+    let obstaculos = [];
+
+    function criarObstaculo() {
+        let tipo = Math.random();
+        let obs = {
+            x: canvas.width,
+            y: 0,
+            largura: 45,
+            altura: 45,
+            tipo: '',
+            emoji: '',
+            vx: 0
+        };
+
+        if (tipo < 0.35) {
+            obs.tipo = 'tubarao';
+            obs.emoji = '🦈';
+            obs.y = Math.random() * (canvas.height - 120) + 60;
+            obs.vx = 1.5;
+        } else if (tipo < 0.7) {
+            obs.tipo = 'rede';
+            obs.emoji = '🕸️';
+            obs.altura = Math.random() * (canvas.height / 2.5) + 40;
+            obs.largura = 35;
+            obs.y = 0;
+        } else {
+            obs.tipo = 'lixo';
+            obs.emoji = ['🛢️', '🗑️', '🛍️'][Math.floor(Math.random() * 3)];
+            obs.y = Math.random() * (canvas.height - 120) + 60;
+            obs.flutuacao = Math.random() * Math.PI;
+        }
+
+        obstaculos.push(obs);
+    }
+
+    // Controles de clique/toque para nadar
+    function acaoPular(e) {
+        if (e) e.preventDefault();
+        if (estadoJogo === 'JOGANDO') {
+            baleia.vy = baleia.pulo;
+        }
+    }
+    window.addEventListener('touchstart', acaoPular, {passive: false});
+    window.addEventListener('mousedown', acaoPular);
+
+    function gameOver() {
+        estadoJogo = 'GAMEOVER';
+        if (animacaoId) cancelAnimationFrame(animacaoId);
+        
+        let reflexaoSorteada = reflexoes[Math.floor(Math.random() * reflexoes.length)];
+        textoReflexao.innerText = `"${reflexaoSorteada}"`;
+        distanciaFinal.innerText = Math.floor(distancia);
+        
+        painelFim.style.display = 'flex';
+    }
+
+    function reiniciarJogo() {
+        baleia.y = canvas.height / 2;
+        baleia.vy = 0;
+        obstaculos = [];
+        frames = 0;
+        distancia = 0;
+        velocidadeJogo = 3;
+        painelFim.style.display = 'none';
+        estadoJogo = 'JOGANDO';
+        loop();
+    }
+
+    // Vincula o botão de reiniciar com segurança
+    btnRestart.addEventListener('click', reiniciarJogo);
+    btnRestart.addEventListener('touchend', (e) => { e.preventDefault(); reiniciarJogo(); });
+
+    function checarColisao(b, o) {
+        let testX = b.x;
+        let testY = b.y;
+
+        if (b.x < o.x) testX = o.x;
+        else if (b.x > o.x + o.largura) testX = o.x + o.largura;
+
+        if (b.y < o.y) testY = o.y;
+        else if (b.y > o.y + o.altura) testY = o.y + o.altura;
+
+        let distX = b.x - testX;
+        let distY = b.y - testY;
+        let distanciaPonto = Math.sqrt((distX * distX) + (distY * distY));
+
+        return distanciaPonto <= b.raio;
+    }
+
+    function loop() {
+        if (estadoJogo !== 'JOGANDO') return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Fundo
+        let gradiente = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        gradiente.addColorStop(0, '#1c7ed6');
+        gradiente.addColorStop(1, '#0b2b52');
+        ctx.fillStyle = gradiente;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Movimento Baleia
+        baleia.vy += baleia.gravidade;
+        baleia.y += baleia.vy;
+
+        if (baleia.y + baleia.raio >= canvas.height || baleia.y - baleia.raio <= 0) {
+            gameOver();
+            return;
+        }
+
+        // Desenhar Baleia
+        ctx.save();
+        ctx.translate(baleia.x, baleia.y);
+        let angulo = Math.min(Math.max(baleia.vy * 0.08, -0.4), 0.4);
+        ctx.rotate(angulo);
+        ctx.font = '36px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🐳', 0, 0);
+        ctx.restore();
+
+        // Criar obstáculos
+        let taxaSpawn = Math.max(75 - Math.floor(distancia / 40), 30);
+        if (frames % taxaSpawn === 0) {
+            criarObstaculo();
+        }
+
+        // Atualizar e desenhar obstáculos
+        for (let i = obstaculos.length - 1; i >= 0; i--) {
+            let obs = obstaculos[i];
+            obs.x -= (velocidadeJogo + obs.vx);
+
+            if (obs.tipo === 'lixo') {
+                obs.y += Math.sin(frames * 0.06 + obs.flutuacao) * 1.5;
+            }
+
+            if (obs.tipo === 'rede') {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+                ctx.fillRect(obs.x, obs.y, obs.largura, obs.altura);
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(obs.x, obs.y, obs.largura, obs.altura);
+            } else {
+                ctx.font = '36px Arial';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                ctx.fillText(obs.emoji, obs.x, obs.y);
+            }
+
+            if (checarColisao(baleia, obs)) {
+                gameOver();
+                return;
+            }
+
+            if (obs.x + obs.largura < 0) {
+                obstaculos.splice(i, 1);
+            }
+        }
+
+        frames++;
+        distancia += velocidadeJogo / 12;
+        if (frames % 250 === 0) velocidadeJogo += 0.2;
+
+        placarText.innerText = `Distância: ${Math.floor(distancia)}m`;
+
+        animacaoId = requestAnimationFrame(loop);
+    }
+
+    // Iniciar jogo pela primeira vez
+    reiniciarJogo();
+</script>
+
+</body>
+</html>
